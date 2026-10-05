@@ -2,14 +2,13 @@ const express = require("express");
 const cors = require("cors");
 
 const healthRoutes = require("./routes/healthRoutes");
+const engagementRoutes = require("./routes/engagementRoutes");
 const requestLogger = require("./middleware/requestLogger");
 
 /*
- * Engagement service — engagements per client per period, the services engaged, their fees and the payments received.
- *
- * A capability service of the profession-bundle platform: profession-neutral,
- * configured by the organization's installed bundle. Only /health exists until
- * its milestone adds the routes (see the plan's Part 3).
+ * Engagement service: engagements per client per period, the services
+ * engaged with their fees, and the payments received — configured by the
+ * organization's profession bundle.
  */
 const app = express();
 
@@ -19,5 +18,6 @@ app.use(express.json());
 app.use(requestLogger);
 
 app.use(healthRoutes);
+app.use(engagementRoutes);
 
 module.exports = app;
