@@ -6,6 +6,7 @@ const requireBundle = require("../middleware/requireBundle");
 const typeService = require("../services/typeService");
 const engagementService = require("../services/engagementService");
 const { notifyAutomation } = require("../services/automationNotifier");
+const { choicesOf } = require("../services/bundleSync");
 
 const OBLIGATION_SERVICE_URL = process.env.OBLIGATION_SERVICE_URL || "http://obligation-service:4010";
 
@@ -84,7 +85,7 @@ router.put(
       throw error;
     }
 
-    return typeService.installTypes(req.auth.organizationId, key, version, req.body?.engagementTypes || []);
+    return typeService.installTypes(req.auth.organizationId, key, version, req.body?.engagementTypes || [], choicesOf(req));
   }),
 );
 

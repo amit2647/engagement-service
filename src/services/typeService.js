@@ -1,5 +1,5 @@
 const pool = require("../config/database");
-const { decide } = require("./bundleSync");
+const { customized, decide, optionsFor } = require("./bundleSync");
 
 /*
  * Engagement types: installed from the organization's bundle (a CA's annual
@@ -22,7 +22,7 @@ const content = (type) => ({
   stages: type.stages || [],
 });
 
-async function installTypes(organizationId, bundleKey, version, types = []) {
+async function installTypes(organizationId, bundleKey, version, types = [], choices = {}) {
   for (const type of types) {
     if (!type?.key || !type.name || !PERIOD_KINDS.has(type.periodKind)) {
       throw badRequest("Each engagement type needs a key, a name and a period kind");
@@ -34,13 +34,13 @@ async function installTypes(organizationId, bundleKey, version, types = []) {
   try {
     await client.query("BEGIN");
 
-    const summary = { inserted: 0, updated: 0, unchanged: 0, kept: 0, retired: 0 };
+    const summary = { inserted: 0, updated: 0, unchanged: 0, kept: 0, retired: 0, customized: [] };
 
     for (const type of types) {
       const shipped = content(type);
       const found = await client.query("SELECT * FROM engagement_types WHERE organization_id = $1 AND key = $2", [organizationId, type.key]);
       const row = found.rows[0];
-      const { action, shippedChecksum, flag } = decide(row && { content: content(row), sourceChecksum: row.source_checksum }, shipped);
+      const { action, shippedChecksum, flag, acknowledge } = decide(row && { content: content(row), sourceChecksum: row.source_checksum }, shipped, optionsFor(choices, "engagement_type", type.key));
 
       if (action === "insert") {
         await client.query(
@@ -55,11 +55,13 @@ async function installTypes(organizationId, bundleKey, version, types = []) {
       if (action === "keep") {
         await client.query(
           `UPDATE engagement_types SET bundle_key = $1, retired_at = NULL,
-             update_available_version = CASE WHEN $2 THEN $3 ELSE update_available_version END
+             update_available_version = CASE WHEN $5 THEN NULL WHEN $2 THEN $3 ELSE update_available_version END,
+             source_checksum = CASE WHEN $5 THEN $6 ELSE source_checksum END
            WHERE id = $4`,
-          [bundleKey, flag, version, row.id],
+          [bundleKey, flag, version, row.id, Boolean(acknowledge), shippedChecksum],
         );
         summary.kept += 1;
+        if (flag) summary.customized.push(customized("engagement_type", type.key, row.name, content(row), shipped, version));
         continue;
       }
 
@@ -86,7 +88,8 @@ async function installTypes(organizationId, bundleKey, version, types = []) {
     );
     summary.retired = retired.rowCount;
 
-    await client.query("COMMIT");
+    // A dry run does all the work and rolls it back, to report what it would do.
+    await client.query(choices.dryRun ? "ROLLBACK" : "COMMIT");
     return summary;
   } catch (error) {
     await client.query("ROLLBACK");
