@@ -7,6 +7,29 @@ const typeService = require("../services/typeService");
 const engagementService = require("../services/engagementService");
 const { notifyAutomation } = require("../services/automationNotifier");
 
+const OBLIGATION_SERVICE_URL = process.env.OBLIGATION_SERVICE_URL || "http://obligation-service:4010";
+
+/*
+ * Deadlines follow the services engaged: after every engagement change,
+ * obligation-service regenerates that engagement's deadlines (idempotent).
+ * Awaited so the Compliance tab is current on the next screen, but a failure
+ * never undoes the engagement — regenerating later catches up.
+ */
+async function regenerateDeadlines(engagementId, token) {
+  try {
+    const response = await fetch(`${OBLIGATION_SERVICE_URL}/obligations/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ engagementId }),
+      signal: AbortSignal.timeout(10 * 1000),
+    });
+
+    if (!response.ok) console.error(`[Engagements] Deadline generation for ${engagementId} answered ${response.status}`);
+  } catch (error) {
+    console.error(`[Engagements] Deadline generation for ${engagementId} failed: ${error.message}`);
+  }
+}
+
 const router = express.Router();
 
 /*
@@ -116,6 +139,8 @@ router.post(
       authorizationToken: req.headers.authorization.split(" ")[1],
     });
 
+    await regenerateDeadlines(created.id, req.headers.authorization.split(" ")[1]);
+
     res.status(201);
     const [engagement] = await engagementService.list(req.auth.organizationId, { engagementId: created.id }, { withFees: withFees(req) });
     return engagement;
@@ -127,6 +152,7 @@ router.put(
   ...gated("engagements.update"),
   respond(async (req) => {
     await engagementService.update(auth(req), req.bundle, id(req.params.id), req.body || {});
+    await regenerateDeadlines(id(req.params.id), req.headers.authorization.split(" ")[1]);
     const [engagement] = await engagementService.list(req.auth.organizationId, { engagementId: id(req.params.id) }, { withFees: withFees(req) });
     return engagement;
   }),
