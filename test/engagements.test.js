@@ -1,14 +1,15 @@
 const { describe, test, before, after, beforeEach, mock } = require("node:test");
 const assert = require("node:assert/strict");
-const jwt = require("jsonwebtoken");
 
 /*
  * Engagements and fees against an in-memory stand-in for the database and a
  * fake bundle-service (CD-06, CD-08, CD-09, FIX-21).
  */
 
-process.env.JWT_SECRET = "unit-test-secret";
-process.env.JWT_ISSUER = "unit-test-issuer";
+// Hydra's tokens, signed with a test key served as a stubbed JWKS.
+const hydra = require("./helpers/hydraToken");
+
+before(() => hydra.ready);
 process.env.BUNDLE_SERVICE_URL = "http://bundle-service.test";
 process.env.EMAIL_SERVICE_URL = "http://email-service.test";
 
@@ -194,7 +195,7 @@ describe("routes", () => {
       method,
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${jwt.sign({ sub: 1, organizationId: 3, role: "X", permissions }, process.env.JWT_SECRET, { issuer: process.env.JWT_ISSUER })}`,
+        Authorization: `Bearer ${hydra.sign({ sub: 1, organizationId: 3, role: "X", permissions })}`,
       },
       body: body && JSON.stringify(body),
     });
