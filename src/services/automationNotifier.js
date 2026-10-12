@@ -1,8 +1,10 @@
 const EMAIL_SERVICE_URL =
   process.env.EMAIL_SERVICE_URL || "http://email-service:4006";
 
-const MAX_ATTEMPTS = 2;
-const TIMEOUT_MS = 3000;
+// Tries per event, and how long each may take (AUTOMATION_NOTIFY_ATTEMPTS,
+// AUTOMATION_NOTIFY_TIMEOUT_MS): short, since nothing waits on it.
+const MAX_ATTEMPTS = Number(process.env.AUTOMATION_NOTIFY_ATTEMPTS) || 2;
+const TIMEOUT_MS = Number(process.env.AUTOMATION_NOTIFY_TIMEOUT_MS) || 3000;
 
 /*
  * Tells email-service that something happened, so it can run any matching

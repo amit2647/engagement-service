@@ -22,7 +22,7 @@ async function regenerateDeadlines(engagementId, token) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ engagementId }),
-      signal: AbortSignal.timeout(10 * 1000),
+      signal: AbortSignal.timeout(Number(process.env.SERVICE_CALL_TIMEOUT_MS) || 10 * 1000),
     });
 
     if (!response.ok) console.error(`[Engagements] Deadline generation for ${engagementId} answered ${response.status}`);
